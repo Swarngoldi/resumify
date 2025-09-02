@@ -238,11 +238,6 @@ curl http://127.0.0.1:8000/recommendations/Web%20Development
 * spaCy `en_core_web_sm`
 * Google Gemini (Generative AI)
 
----
-
-## 📄 License
-
-MIT (or your preferred license—update before publishing)
 
 ---
 
