@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Next-Gen AI Resume Analyzer</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+
+  <!-- PDF export libs -->
+  <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
+  <style>
+    :root {
+      --ring: #6366f1;
+      --bg-grad-1: 255, 255, 255;
+      --bg-grad-2: 241, 245, 249;
+    }
+    body { font-family: 'Inter', sans-serif; }
+    .app-grad {
+      background:
+        radial-gradient(1200px 600px at -10% -10%, rgba(79,70,229,0.12), transparent 60%),
+        radial-gradient(900px 500px at 110% 10%, rgba(14,165,233,0.10), transparent 60%),
+        linear-gradient(180deg, rgba(var(--bg-grad-1), 1) 0%, rgba(var(--bg-grad-2), 0.8) 100%);
+    }
+    .glass { backdrop-filter: blur(12px); background: rgba(255,255,255,0.8); }
+    #drop-zone { border: 2px dashed #cbd5e1; transition: border-color .2s, background-color .2s, transform .2s; }
+    #drop-zone.drag-over { border-color: var(--ring); background-color: #eef2ff; transform: translateY(-1px); }
+    .progress-circle { transform: rotate(-90deg); }
+    .progress-circle-bar { transition: stroke-dashoffset 0.8s ease-out; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    .chip { padding: .35rem .6rem; border-radius: 9999px; border: 1px solid #e2e8f0; background: #fff; font-size: .85rem; }
+    .chip.badge { border-color: #dbeafe; background: #eff6ff; }
+    .tone-bar > span { transition: width .6s ease; }
+
+    /* PDF Report specific */
+    #report-root {
+      position: fixed; left: -99999px; top: 0; width: 794px; /* ~A4 width in px */
+      background: #fff; color: #0f172a; padding: 32px; box-sizing: border-box;
+      font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto;
+    }
+    .report-section { margin-bottom: 18px; }
+    .report-h1 { font-size: 20px; font-weight: 800; margin: 0 0 12px; }
+    .report-h2 { font-size: 15px; font-weight: 700; margin: 18px 0 8px; }
+    .report-p  { font-size: 12px; line-height: 1.5; margin: 0 0 8px; }
+    .report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; font-size: 12px; }
+    .report-chip { display:inline-block; padding: 4px 8px; border:1px solid #e5e7eb; border-radius:9999px; margin: 3px 6px 0 0; font-size:11px; background:#f8fafc;}
+    .report-meta { font-size: 11px; color: #475569; }
+  </style>
+</head>
+
+<body class="app-grad min-h-screen text-slate-800 antialiased">
+  <div class="min-h-screen flex flex-col items-center p-4 sm:p-6 lg:p-10">
+    <!-- Header -->
+    <header class="w-full max-w-7xl mb-8">
+      <div class="flex items-center gap-3">
+        <div class="h-10 w-10 rounded-xl bg-indigo-600/90 text-white grid place-items-center shadow-md">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2M4 6h16M4 10h16M4 14h10"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">Next-Gen AI Resume Analyzer</h1>
+          <p class="text-slate-600">Instant, data-driven analysis of your resume against any job description.</p>
+        </div>
+      </div>
+    </header>
+
+    <!-- App Panel -->
+    <main id="app-panel" class="w-full max-w-7xl glass rounded-2xl shadow-xl border border-white/60 p-6 sm:p-8 lg:p-10 transition-all duration-500">
+      <!-- Uploader View -->
+      <div id="uploader-view">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div class="space-y-4">
+            <h3 class="text-xl font-semibold text-slate-900">Step 1: Upload Your Resume</h3>
+            <div id="drop-zone" class="relative flex flex-col items-center justify-center w-full h-56 rounded-2xl cursor-pointer bg-white/70 hover:bg-white border border-slate-200">
+              <div class="flex flex-col items-center justify-center pt-6 pb-8">
+                <svg class="w-12 h-12 mb-3 text-slate-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
+                  <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
+                </svg>
+                <p class="text-lg text-slate-700"><span class="font-semibold">Click to upload</span> or drag & drop</p>
+                <p class="text-sm text-slate-500">PDF only • processed in-memory • not stored</p>
+              </div>
+              <input id="file-upload" type="file" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".pdf"/>
+            </div>
+            <div id="file-name-display" class="hidden text-sm px-3 py-2 rounded-lg bg-indigo-50 text-indigo-700 inline-flex items-center gap-2">
+              <span class="inline-block h-2 w-2 rounded-full bg-indigo-600"></span>
+              <span></span>
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <h3 class="text-xl font-semibold text-slate-900">Step 2: Paste Job Description</h3>
+            <textarea id="job-description" class="w-full h-56 p-4 rounded-2xl border border-slate-200 bg-white/70 focus:ring-4 focus:ring-indigo-200 focus:border-indigo-500 transition"
+                      placeholder="Paste the job description here for the most accurate analysis..."></textarea>
+          </div>
+        </div>
+
+        <button id="analyze-button"
+                class="mt-8 w-full bg-indigo-600 text-white font-bold text-lg py-4 rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 transition disabled:bg-slate-400 disabled:cursor-not-allowed"
+                disabled>
+          Analyze My Resume
+        </button>
+
+        <div id="error-message" class="hidden mt-4 text-center bg-red-50 text-red-700 border border-red-200 px-4 py-3 rounded-xl"></div>
+      </div>
+
+      <!-- Loading View -->
+      <div id="loading-view" class="hidden text-center py-20">
+        <div role="status" class="flex flex-col items-center justify-center gap-3">
+          <svg class="animate-spin h-10 w-10 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-80" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.37 0 0 5.37 0 12h4z"/>
+          </svg>
+          <p id="loading-text" class="text-lg font-semibold text-slate-700">AI is analyzing your documents…</p>
+          <p class="text-slate-500 text-sm">This usually takes a few seconds.</p>
+        </div>
+      </div>
+
+      <!-- Results View -->
+      <div id="results-view" class="hidden">
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+          <!-- Left Column -->
+          <div class="xl:col-span-1 space-y-6">
+            <div class="glass rounded-2xl border border-slate-200 p-6 text-center">
+              <h3 class="text-lg font-semibold text-slate-900 mb-4">AI Job Match Score</h3>
+              <div class="relative w-40 h-40 mx-auto">
+                <svg class="w-full h-full progress-circle" viewBox="0 0 100 100">
+                  <circle class="text-slate-200" stroke="currentColor" stroke-width="10" cx="50" cy="50" r="45" fill="transparent"></circle>
+                  <circle id="progress-bar" class="progress-circle-bar text-indigo-600" stroke="currentColor" stroke-width="10" stroke-linecap="round"
+                          cx="50" cy="50" r="45" fill="transparent" stroke-dasharray="283" stroke-dashoffset="283"></circle>
+                </svg>
+                <span id="score-text" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-4xl font-extrabold text-slate-900">0%</span>
+              </div>
+              <p id="score-feedback" class="mt-4 text-slate-600 font-medium"></p>
+            </div>
+
+            <div class="ai-insight-card rounded-2xl">
+              <h4 class="text-lg font-semibold text-slate-900 mb-3">Candidate Profile</h4>
+              <div class="grid grid-cols-1 gap-2 text-sm">
+                <p><span class="font-medium text-slate-700">Name:</span> <span id="info-name" class="text-slate-700"></span></p>
+                <p><span class="font-medium text-slate-700">Email:</span> <span id="info-email" class="text-slate-700"></span></p>
+                <p><span class="font-medium text-slate-700">Experience:</span> <span id="info-experience" class="text-slate-700"></span></p>
+                <p><span class="font-medium text-slate-700">Tone:</span> <span id="info-tone" class="text-slate-700"></span></p>
+              </div>
+              <div id="tone-dist-wrap" class="mt-4 hidden">
+                <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
+                  <span>NEG</span><span>NEU</span><span>POS</span>
+                </div>
+                <div class="tone-bar flex overflow-hidden rounded-full border border-slate-200">
+                  <span id="tone-neg" class="bg-rose-200/80 h-2" style="width:0%"></span>
+                  <span id="tone-neu" class="bg-slate-200 h-2" style="width:0%"></span>
+                  <span id="tone-pos" class="bg-emerald-200/80 h-2" style="width:0%"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="ai-insight-card rounded-2xl">
+              <h4 class="text-lg font-semibold text-slate-900 mb-3">NLP Local Match</h4>
+              <p id="local-score" class="text-2xl font-extrabold text-slate-900">—</p>
+              <p class="text-xs text-slate-500">Based on skills overlap & token similarity.</p>
+              <div id="missing-skills" class="mt-3 flex flex-wrap gap-2"></div>
+            </div>
+          </div>
+
+          <!-- Right Column -->
+          <div class="xl:col-span-2 space-y-6">
+            <div class="ai-insight-card rounded-2xl">
+              <h4 class="text-lg font-semibold text-slate-900 mb-2">📄 AI-Generated Summary</h4>
+              <p id="ai-summary" class="text-slate-700 leading-relaxed"></p>
+            </div>
+
+            <div class="ai-insight-card rounded-2xl">
+              <h4 class="text-lg font-semibold text-slate-900 mb-2">👍 Strengths for This Role</h4>
+              <ul id="ai-strengths" class="list-disc list-inside space-y-1.5 text-slate-700"></ul>
+            </div>
+
+            <div class="ai-insight-card rounded-2xl">
+              <h4 class="text-lg font-semibold text-slate-900 mb-2">🤔 Areas for Improvement</h4>
+              <ul id="ai-weaknesses" class="list-disc list-inside space-y-1.5 text-slate-700"></ul>
+            </div>
+          </div>
+        </div>
+
+        <hr class="my-8 border-slate-200"/>
+
+        <!-- Recommendations -->
+        <div>
+          <h3 class="text-2xl font-bold text-slate-900 mb-4 text-center">🎓 Learning & Preparation</h3>
+          <div id="recommendations-container" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
+        </div>
+
+        <div class="mt-10 w-full flex flex-col md:flex-row gap-3">
+          <button id="export-pdf-btn"
+                  class="w-full md:w-1/2 bg-emerald-600 text-white font-semibold py-3 rounded-xl hover:bg-emerald-700 transition">
+            Export PDF Report
+          </button>
+          <button id="analyze-another-btn"
+                  class="w-full md:w-1/2 bg-white text-slate-700 font-semibold py-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition">
+            Analyze Another Resume
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <footer class="text-center mt-8">
+      <p class="text-slate-500 text-sm">Built with 🤍 & a touch of AI • Your files are not stored</p>
+    </footer>
+  </div>
+
+  <!-- Hidden report root used for PDF rendering -->
+  <div id="report-root" class="hidden"></div>
+
+  <script>
+    const API_BASE = 'http://127.0.0.1:8000'; // change to your deployed backend when you ship
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const dropZone = document.getElementById('drop-zone');
+      const fileUpload = document.getElementById('file-upload');
+      const fileNameDisplay = document.getElementById('file-name-display');
+      const errorMessage = document.getElementById('error-message');
+      const uploaderView = document.getElementById('uploader-view');
+      const loadingView = document.getElementById('loading-view');
+      const resultsView = document.getElementById('results-view');
+      const analyzeAnotherBtn = document.getElementById('analyze-another-btn');
+      const jobDescription = document.getElementById('job-description');
+      const analyzeButton = document.getElementById('analyze-button');
+      const exportBtn = document.getElementById('export-pdf-btn');
+
+      // Results refs
+      const infoName = document.getElementById('info-name');
+      const infoEmail = document.getElementById('info-email');
+      const infoExp = document.getElementById('info-experience');
+      const infoTone = document.getElementById('info-tone');
+      const toneWrap = document.getElementById('tone-dist-wrap');
+      const toneNeg = document.getElementById('tone-neg');
+      const toneNeu = document.getElementById('tone-neu');
+      const tonePos = document.getElementById('tone-pos');
+
+      const progressBar = document.getElementById('progress-bar');
+      const scoreText = document.getElementById('score-text');
+      const scoreFeedback = document.getElementById('score-feedback');
+
+      const aiSummary = document.getElementById('ai-summary');
+      const aiStrengths = document.getElementById('ai-strengths');
+      const aiWeaknesses = document.getElementById('ai-weaknesses');
+
+      const localScore = document.getElementById('local-score');
+      const missingSkills = document.getElementById('missing-skills');
+      const recContainer = document.getElementById('recommendations-container');
+
+      let uploadedFile = null;
+      let lastLocal = null;
+      let lastAI = null;
+
+      function updateAnalyzeButtonState() {
+        analyzeButton.disabled = !uploadedFile;
+      }
+
+      dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+      dropZone.addEventListener('dragleave', (e) => { e.preventDefault(); dropZone.classList.remove('drag-over'); });
+      dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('drag-over');
+        const files = e.dataTransfer.files;
+        if (files.length > 0) handleFile(files[0]);
+      });
+      fileUpload.addEventListener('change', () => { if (fileUpload.files.length > 0) handleFile(fileUpload.files[0]); });
+
+      analyzeButton.addEventListener('click', startAnalysisPipeline);
+      analyzeAnotherBtn.addEventListener('click', resetToInitialState);
+      exportBtn.addEventListener('click', generatePDFReport);
+
+      function handleFile(file) {
+        if (!file) return;
+        uploadedFile = file;
+        fileNameDisplay.classList.remove('hidden');
+        fileNameDisplay.lastElementChild.textContent = `File selected: ${file.name}`;
+        updateAnalyzeButtonState();
+      }
+
+      async function startAnalysisPipeline() {
+        if (!uploadedFile) return showError('Please upload a resume file first.');
+
+        uploaderView.classList.add('hidden');
+        loadingView.classList.remove('hidden');
+        resultsView.classList.add('hidden');
+        errorMessage.classList.add('hidden');
+
+        const formData = new FormData();
+        formData.append('file', uploadedFile);
+        formData.append('job_description', jobDescription.value);
+
+        try {
+          const response = await fetch(`${API_BASE}/analyze/`, { method: 'POST', body: formData });
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Analysis failed.');
+          }
+          const results = await response.json();
+          const aiInsights = JSON.parse(results.aiAnalysis);
+
+          displayResults(results, aiInsights);
+
+          lastLocal = results;
+          lastAI = aiInsights;
+
+          const predField = aiInsights.predictedField || (results?.nlp?.predictedFieldLocal) || 'default';
+          fetchRecommendations(predField);
+
+          loadingView.classList.add('hidden');
+          resultsView.classList.remove('hidden');
+        } catch (err) {
+          showError(err.message || 'Something went wrong.');
+        }
+      }
+
+      function displayResults(localResults, aiResults) {
+        infoName.textContent = localResults?.basicInfo?.name || 'Not Found';
+        infoEmail.textContent = localResults?.basicInfo?.email || 'Not Found';
+        infoExp.textContent = localResults?.experienceLevel || 'Not Found';
+
+        const tone = localResults?.tone;
+        if (tone) {
+          infoTone.textContent = `${tone.label} (${tone.score ?? 0}%)`;
+          if (tone.distribution) {
+            const neg = Math.max(0, tone.distribution.NEGATIVE || 0);
+            const neu = Math.max(0, tone.distribution.NEUTRAL  || 0);
+            const pos = Math.max(0, tone.distribution.POSITIVE || 0);
+            toneNeg.style.width = `${neg}%`;
+            toneNeu.style.width = `${neu}%`;
+            tonePos.style.width = `${pos}%`;
+            toneWrap.classList.remove('hidden');
+          } else {
+            toneWrap.classList.add('hidden');
+          }
+        }
+
+        const circumference = 2 * Math.PI * 45;
+        const score = Math.max(0, Math.min(100, aiResults?.jobMatchScore || 0));
+        const offset = circumference - (score / 100) * circumference;
+        progressBar.style.strokeDashoffset = offset;
+        scoreText.textContent = `${score}%`;
+        scoreFeedback.textContent = aiResults?.scoreReasoning || 'AI analysis complete.';
+
+        aiSummary.textContent = aiResults?.summary || 'Could not generate summary.';
+        aiStrengths.innerHTML = Array.isArray(aiResults?.strengths) ? aiResults.strengths.map(s => `<li>${escapeHTML(s)}</li>`).join('') : '';
+        aiWeaknesses.innerHTML = Array.isArray(aiResults?.weaknesses) ? aiResults.weaknesses.map(w => `<li>${escapeHTML(w)}</li>`).join('') : '';
+
+        const nlp = localResults?.nlp || {};
+        if (typeof nlp.localMatchScore === 'number') {
+          localScore.textContent = `${nlp.localMatchScore}/100`;
+        } else {
+          localScore.textContent = '—';
+        }
+        const miss = Array.isArray(nlp.missingSkills) ? nlp.missingSkills.slice(0, 16) : [];
+        missingSkills.innerHTML = miss.length
+          ? `<div class="text-xs text-slate-500 mb-1">Missing skills from JD:</div>` +
+            miss.map(m => `<span class="chip badge">${escapeHTML(m)}</span>`).join(' ')
+          : `<div class="text-xs text-slate-500">No obvious missing skills detected.</div>`;
+      }
+
+      async function fetchRecommendations(field) {
+        try {
+          const url = `${API_BASE}/recommendations/${encodeURIComponent(field)}`;
+          const response = await fetch(url);
+          if (!response.ok) return;
+          const recs = await response.json();
+          let recHTML = '';
+
+          if (recs.courses?.length) {
+            recs.courses.forEach(course => {
+              recHTML += `
+                <a href="${course[1]}" target="_blank" class="rec-card rounded-2xl hover:shadow-xl">
+                  <div class="text-xs uppercase tracking-wide text-indigo-600 font-semibold mb-1">Recommended Course</div>
+                  <h5 class="font-semibold text-slate-900 leading-snug">${escapeHTML(course[0])}</h5>
+                </a>`;
+            });
+          }
+          if (recs.resume_videos?.length) {
+            recHTML += `
+              <a href="${recs.resume_videos[0]}" target="_blank" class="rec-card rounded-2xl hover:shadow-xl">
+                <div class="text-xs uppercase tracking-wide text-pink-600 font-semibold mb-1">Resume Writing</div>
+                <h5 class="font-semibold text-slate-900 leading-snug">Watch a helpful video</h5>
+              </a>`;
+          }
+          if (recs.interview_videos?.length) {
+            recHTML += `
+              <a href="${recs.interview_videos[0]}" target="_blank" class="rec-card rounded-2xl hover:shadow-xl">
+                <div class="text-xs uppercase tracking-wide text-emerald-600 font-semibold mb-1">Interview Prep</div>
+                <h5 class="font-semibold text-slate-900 leading-snug">Watch a helpful video</h5>
+              </a>`;
+          }
+          recContainer.innerHTML = recHTML || '<p class="text-slate-500">No recommendations available.</p>';
+        } catch {
+          recContainer.innerHTML = '<p class="text-slate-500">Could not load recommendations.</p>';
+        }
+      }
+
+      function resetToInitialState() {
+        resultsView.classList.add('hidden');
+        loadingView.classList.add('hidden');
+        uploaderView.classList.remove('hidden');
+        fileUpload.value = '';
+        uploadedFile = null;
+        jobDescription.value = '';
+        fileNameDisplay.classList.add('hidden');
+        fileNameDisplay.lastElementChild.textContent = '';
+        errorMessage.classList.add('hidden');
+        updateAnalyzeButtonState();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      function showError(message) {
+        loadingView.classList.add('hidden');
+        uploaderView.classList.remove('hidden');
+        errorMessage.textContent = `Error: ${message}`;
+        errorMessage.classList.remove('hidden');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      /* ---------- PDF REPORT ---------- */
+      function renderReportHTML(localResults, aiResults) {
+        const name = (localResults?.basicInfo?.name) || '—';
+        const email = (localResults?.basicInfo?.email) || '—';
+        const expLevel = (localResults?.experienceLevel) || '—';
+        const tone = localResults?.tone || {};
+        const toneLabel = tone.label || '—';
+        const toneScore = tone.score ?? 0;
+        const dist = tone.distribution || { NEGATIVE: 0, NEUTRAL: 0, POSITIVE: 0 };
+
+        const score = aiResults?.jobMatchScore ?? 0;
+        const reasoning = aiResults?.scoreReasoning || '';
+        const summary = aiResults?.summary || '';
+        const strengths = Array.isArray(aiResults?.strengths) ? aiResults.strengths : [];
+        const weaknesses = Array.isArray(aiResults?.weaknesses) ? aiResults.weaknesses : [];
+
+        const nlp = localResults?.nlp || {};
+        const localScore = typeof nlp.localMatchScore === 'number' ? nlp.localMatchScore : null;
+        const missing = Array.isArray(nlp.missingSkills) ? nlp.missingSkills.slice(0, 24) : [];
+        const jdSkills = Array.isArray(nlp.jobSkills) ? nlp.jobSkills.slice(0, 30) : [];
+        const resSkills = Array.isArray(nlp.skillsAll) ? nlp.skillsAll.slice(0, 30) : [];
+
+        const date = new Date();
+        const when = date.toLocaleString();
+
+        const esc = (s) => escapeHTML(String(s ?? ''));
+        return `
+          <div style="width:730px; margin:0 auto;">
+            <div class="report-section">
+              <div class="report-h1">AI Resume Analysis Report</div>
+              <div class="report-meta">Generated: ${esc(when)}</div>
+            </div>
+
+            <div class="report-section">
+              <div class="report-h2">Candidate Profile</div>
+              <div class="report-grid">
+                <div><strong>Name:</strong> ${esc(name)}</div>
+                <div><strong>Email:</strong> ${esc(email)}</div>
+                <div><strong>Experience Level:</strong> ${esc(expLevel)}</div>
+                <div><strong>Tone:</strong> ${esc(toneLabel)} (${esc(toneScore)}%)</div>
+              </div>
+              <div class="report-p">Tone distribution — NEG: ${dist.NEGATIVE||0}%, NEU: ${dist.NEUTRAL||0}%, POS: ${dist.POSITIVE||0}%</div>
+            </div>
+
+            <div class="report-section">
+              <div class="report-h2">Job Match</div>
+              <div class="report-p"><strong>LLM Job Match Score:</strong> ${esc(score)} / 100</div>
+              ${reasoning ? `<div class="report-p"><em>${esc(reasoning)}</em></div>` : ''}
+              ${localScore !== null ? `<div class="report-p"><strong>NLP Local Match:</strong> ${esc(localScore)} / 100</div>` : ''}
+            </div>
+
+            <div class="report-section">
+              <div class="report-h2">Summary</div>
+              <div class="report-p">${esc(summary)}</div>
+            </div>
+
+            <div class="report-section">
+              <div class="report-h2">Strengths</div>
+              <div class="report-p">${strengths.map(s => `• ${esc(s)}`).join('<br/>') || '—'}</div>
+            </div>
+
+            <div class="report-section">
+              <div class="report-h2">Areas for Improvement</div>
+              <div class="report-p">${weaknesses.map(w => `• ${esc(w)}`).join('<br/>') || '—'}</div>
+            </div>
+
+            <div class="report-section">
+              <div class="report-h2">Skills Snapshot</div>
+              <div class="report-p"><strong>JD Keywords:</strong><br/>${jdSkills.map(k => `<span class="report-chip">${esc(k)}</span>`).join(' ') || '—'}</div>
+              <div class="report-p"><strong>Resume Skills:</strong><br/>${resSkills.map(k => `<span class="report-chip">${esc(k)}</span>`).join(' ') || '—'}</div>
+              <div class="report-p"><strong>Missing (from JD):</strong><br/>${missing.map(k => `<span class="report-chip">${esc(k)}</span>`).join(' ') || '—'}</div>
+            </div>
+
+            <div class="report-section">
+              <div class="report-p" style="color:#64748b">Note: This report is generated automatically based on your uploaded resume and the provided job description. Files are processed in-memory and not stored.</div>
+            </div>
+          </div>
+        `;
+      }
+
+      async function generatePDFReport() {
+        if (!lastLocal || !lastAI) {
+          return showError('Please run an analysis first.');
+        }
+        const reportRoot = document.getElementById('report-root');
+        reportRoot.innerHTML = renderReportHTML(lastLocal, lastAI);
+        reportRoot.classList.remove('hidden');
+
+        // jsPDF UMD
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('p', 'pt', 'a4');
+
+        await doc.html(reportRoot, {
+          x: 24, y: 24, width: 548, // fits A4 with decent margins
+          windowWidth: 794,
+          autoPaging: 'text',
+          html2canvas: { scale: 2, useCORS: true },
+          callback: function (doc) {
+            const nameSafe = (lastLocal?.basicInfo?.name || 'Candidate').replace(/[^\w\- ]+/g, '').trim() || 'Candidate';
+            doc.save(`${nameSafe}_Resume_Analysis.pdf`);
+            reportRoot.classList.add('hidden');
+          }
+        });
+      }
+
+      // utils
+      function escapeHTML(str) {
+        return (str ?? '').toString()
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#039;');
+      }
+
+      function updateAnalyzeButtonState() {
+        analyzeButton.disabled = !uploadedFile;
+      }
+    });
+  </script>
+</body>
+</html>
