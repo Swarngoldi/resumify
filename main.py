@@ -180,7 +180,7 @@ async def analyze_resume_with_ai(file: UploadFile = File(...), job_description: 
     tone_score = int(sentiment_result[0]['score'] * 100)
 
     try:
-        api_key = "AIzaSyBHjcZdtfa52RILdP8mYWrjBeWcmP7P030"
+        api_key = "your_api_key"
         prompt = f"""
         Act as an expert technical recruiter. Analyze the following resume against the provided job description, considering the candidate's predicted experience level and the sentiment of their resume. 
         Provide a JSON response with: jobMatchScore, scoreReasoning, predictedField, strengths, weaknesses, summary, interviewQuestions.
