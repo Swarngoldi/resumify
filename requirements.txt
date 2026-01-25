@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+httpx
+pypdf2
+nltk
+spacy
+transformers
+torch
