@@ -180,7 +180,10 @@ async def analyze_resume_with_ai(file: UploadFile = File(...), job_description: 
     tone_score = int(sentiment_result[0]['score'] * 100)
 
     try:
-        api_key = "your_api_key"
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+           raise HTTPException(status_code=500, detail="GOOGLE_API_KEY not set")
+
         prompt = f"""
         Act as an expert technical recruiter. Analyze the following resume against the provided job description, considering the candidate's predicted experience level and the sentiment of their resume. 
         Provide a JSON response with: jobMatchScore, scoreReasoning, predictedField, strengths, weaknesses, summary, interviewQuestions.
