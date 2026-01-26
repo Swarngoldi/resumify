@@ -13,14 +13,11 @@ import nltk
 import traceback
 from PyPDF2 import PdfReader
 import random
-from transformers import pipeline # For TensorFlow Sentiment Analysis
+
 
 # --- DATA & MODEL LOADING ---
 
-# Load Sentiment Analysis model once on startup
-print("Loading TensorFlow sentiment analysis model...")
-sentiment_analyzer = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
-print("Model loaded successfully.")
+
 
 # --- Download necessary NLTK data if not already present ---
 try:
@@ -175,9 +172,9 @@ async def analyze_resume_with_ai(file: UploadFile = File(...), job_description: 
     basic_info = extract_basic_info(resume_text)
     experience_level = predict_experience_level(resume_text)
     
-    sentiment_result = sentiment_analyzer(resume_text[:512])
-    tone_label = sentiment_result[0]['label']
-    tone_score = int(sentiment_result[0]['score'] * 100)
+    tone_label = "NEUTRAL"
+    tone_score = 80
+
 
     try:
         api_key = os.getenv("GOOGLE_API_KEY")

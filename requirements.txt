@@ -4,5 +4,4 @@ httpx
 pypdf2
 nltk
 spacy
-transformers
-torch
+
