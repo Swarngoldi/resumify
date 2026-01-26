@@ -4,4 +4,4 @@ httpx
 pypdf2
 nltk
 spacy
-
+python-multipart
