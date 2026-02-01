@@ -203,7 +203,8 @@ async def analyze_resume_with_ai(file: UploadFile = File(...), job_description: 
         api_url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}"
 
         
-        payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"responseMimeType": "application/json"}}
+        payload = {"contents": [{"role": "user", "parts": [{"text": prompt}]}]}
+
 
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(api_url, json=payload)
